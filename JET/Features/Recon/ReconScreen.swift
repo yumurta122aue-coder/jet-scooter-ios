@@ -5,9 +5,8 @@ struct ReconScreen: View {
     @State private var showLog = true
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.bg.ignoresSafeArea()
+        ZStack {
+            Theme.bg.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     controlBar
@@ -40,7 +39,6 @@ struct ReconScreen: View {
                 DeviceDetailView(scanner: scanner, device: device)
             }
             .onDisappear { scanner.stopScan() }
-        }
     }
 
     // MARK: - pieces

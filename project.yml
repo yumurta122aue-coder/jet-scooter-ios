@@ -59,6 +59,7 @@ targets:
         NSBluetoothAlwaysUsageDescription: JET connects to your scooter over Bluetooth to unlock it and end your ride.
         NSBluetoothPeripheralUsageDescription: JET connects to your scooter over Bluetooth to unlock it.
         NSCameraUsageDescription: JET uses the camera to scan the QR code on the scooter.
+        NFCReaderUsageDescription: JET reads contactless cards and tags so you can inspect what a vehicle or transit card is presenting.
         NSLocationWhenInUseUsageDescription: JET shows scooters near you and tracks your ride distance.
         NSLocationAlwaysAndWhenInUseUsageDescription: JET keeps your ride tracking accurate while the screen is off.
         ITSAppUsesNonExemptEncryption: false

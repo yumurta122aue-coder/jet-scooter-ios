@@ -23,8 +23,8 @@ struct RootView: View {
                 .tabItem { Label("Profile", systemImage: "person.fill") }
                 .tag(3)
 
-            ReconScreen()
-                .tabItem { Label("Recon", systemImage: "antenna.radiowaves.left.and.right") }
+            ToolsScreen()
+                .tabItem { Label("Tools", systemImage: "wrench.and.screwdriver.fill") }
                 .tag(4)
         }
         .tint(Theme.lime)
