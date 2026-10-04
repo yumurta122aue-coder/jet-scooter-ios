@@ -3,6 +3,12 @@ name: build-ipa
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'tools/**'
+      - 'firmware/**'
+      - '**.md'
+      - '.gitignore'
+      - '.gitattributes'
   workflow_dispatch:
 
 jobs:

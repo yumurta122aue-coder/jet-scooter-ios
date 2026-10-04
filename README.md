@@ -110,8 +110,30 @@ JET/
   Resources/Assets.xcassets     icon (generated), accent colour
 firmware/jet_vehicle/           ESP32-S3 vehicle controller
 tools/make_icon.py              regenerates the app icon
+tools/static_dump.py            Mach-O / IPA static analysis, no execution
+tools/forge_from_dump.py        dump → recover key seed → mint a token
 .github/workflows/build-ipa.yml cloud build → unsigned .ipa
 ```
+
+## Static analysis
+
+The build is unencrypted and unstripped of metadata, so a plain byte-level read
+recovers a great deal. Both tools run on Windows with no device and no debugger:
+
+```bash
+python tools/static_dump.py JET.ipa        # header, dylibs, sections, symbols, strings, entropy
+python tools/forge_from_dump.py JET.ipa    # recover the key seed, forge a token
+```
+
+`static_dump.py` reports the Mach-O header and flags, the full segment/section
+table, linked frameworks, the symbol table, Objective-C and Swift metadata, every
+interesting string bucketed by kind, and per-section entropy as a packing check.
+
+`forge_from_dump.py` then closes the loop: a key seed left in a binary is a
+published key. That is the entire argument for the token design — the app must
+never hold the authority, because whatever it holds is readable. Both tools exist
+so the claim is verifiable rather than asserted. See the note under
+[the unlock protocol](#the-unlock-protocol).
 
 ## Running it on a Mac
 
