@@ -64,6 +64,10 @@ def hx(n):
     return f"0x{n:x}"
 
 
+# Which module's Swift symbols to decode. Change for other binaries.
+MODULE = "JET"
+
+
 # ----------------------------------------------------------------------------
 # Mach-O parsing
 # ----------------------------------------------------------------------------
@@ -73,6 +77,7 @@ class MachO:
         self.blob = blob
         self.label = label
         self.sections = []          # list of dicts
+        self.segments = []          # section-less segments (__LINKEDIT)
         self.section_data = {}      # (seg, sect) -> bytes
         self.dylibs = []
         self.rpaths = []
@@ -145,6 +150,12 @@ class MachO:
                 if sfileoff and size:
                     self.section_data[(ssegname or segname, sectname)] = blob[sfileoff:sfileoff + size]
                 soff += 80
+            # __LINKEDIT has no sections, but it is where the symbol table, the
+            # string table and the embedded build paths actually live. Skipping
+            # it means missing the most revealing bytes in the file.
+            if nsects == 0 and fileoff and filesize:
+                self.section_data[(segname, "(whole segment)")] = blob[fileoff:fileoff + filesize]
+                self.segments.append({"seg": segname, "size": filesize, "offset": fileoff})
 
         elif base == 0xC or base == 0xD:  # LC_LOAD_DYLIB / LC_ID_DYLIB
             nameoff = struct.unpack_from("<I", blob, offset + 8)[0]
@@ -419,7 +430,7 @@ def main(path):
         "GATT UUIDs": lambda s: uuid_re.match(s),
         "URLs and hosts": lambda s: s.startswith(("http://", "https://", "ws://", "wss://")),
         "domains": lambda s: host_re.match(s) and " " not in s,
-        "build paths (leak the builder)": lambda s: path_re.match(s),
+        "build paths (leak the builder)": lambda s: "/Users/" in s or "/home/" in s or "Intermediates" in s,
         "keys / secrets / tokens": lambda s: re.search(
             r"(?i)(secret|api[_-]?key|apikey|token|password|passwd|credential|private[_-]?key|hmac|salt)", s),
         "our own identifiers": lambda s: "SK-" in s or "JET" in s or "jet-" in s,
@@ -436,6 +447,50 @@ def main(path):
             print(f"     {s}")
         if len(hits) > 30:
             print(f"     … and {len(hits) - 30} more")
+
+    # ------------------------------------------------------- swift metadata
+    rule("SWIFT METADATA RECOVERY")
+    print("  Stripping the symbol table does not hide a Swift binary. The")
+    print("  __swift5_* sections and __LINKEDIT still carry type layouts, member")
+    print("  names and the build tree. Recovered with no disassembler at all:")
+    print()
+
+    text = blob.decode("latin-1")
+
+    types = sorted({m[1] for m in re.findall(r"_\$s3JET(\d+)([A-Z][A-Za-z0-9]+)", text)})
+    if types:
+        print(f"  types in module '{MODULE}': {len(types)}")
+        print("    " + ", ".join(types))
+        print()
+
+    members = sorted({m[1] for m in re.findall(
+        r"_\$s3JET[A-Za-z0-9]+(\d+)(_[A-Za-z][A-Za-z0-9]*)", text)})
+    if members:
+        print(f"  private stored properties: {len(members)}")
+        for name in members:
+            print(f"    {name}")
+        print()
+
+    statics = sorted({m[1] for m in re.findall(
+        r"_\$s3JET[A-Za-z0-9]+C(\d+)([A-Za-z][A-Za-z0-9]*)(?:UUID|_WZ|vpZ)", text)})
+    if statics:
+        print(f"  static / class members: {len(statics)}")
+        print("    " + ", ".join(statics))
+        print()
+
+    objects = sorted({p.rsplit("/", 1)[-1] for p in re.findall(r"/Users/[ -~]{6,200}", text)
+                      if p.endswith(".o")})
+    trees = sorted({re.match(r"/Users/[^/]+/[^/]+", p).group() for p in
+                    re.findall(r"/Users/[ -~]{6,200}", text)
+                    if re.match(r"/Users/[^/]+/[^/]+", p)})
+    if trees:
+        print(f"  builder source tree leaked: {', '.join(trees)}")
+    if objects:
+        print(f"  translation units compiled ({len(objects)}):")
+        print("    " + ", ".join(objects))
+    print()
+    print("  Every source file name, every private property and the CI runner's")
+    print("  directory layout, read straight out of the binary.")
 
     # ------------------------------------------------------ targeted hunt
     rule("TARGETED HUNT: does this binary carry a usable fleet key?")
