@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import CoreLocation
 
 struct SummaryScreen: View {
     @EnvironmentObject private var store: RideStore
@@ -44,10 +45,7 @@ struct SummaryScreen: View {
     }
 
     private var routeMap: some View {
-        Map(initialPosition: .region(
-            MKCoordinateRegion(center: RideStore.demoCenter,
-                               span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008))
-        )) {
+        Map(initialPosition: .region(routeRegion)) {
             if store.track.count > 1 {
                 MapPolyline(coordinates: store.track.map(\.coordinate))
                     .stroke(Theme.lime, style: StrokeStyle(lineWidth: 5, lineCap: .round))
@@ -60,6 +58,29 @@ struct SummaryScreen: View {
         .allowsHitTesting(false)
     }
 
+    /// Frames the ride the rider actually took, wherever that happened.
+    private var routeRegion: MKCoordinateRegion {
+        let points = store.track.map(\.coordinate)
+        guard !points.isEmpty else {
+            return MKCoordinateRegion(
+                center: store.userLocation ?? RideStore.fallbackCenter,
+                span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)
+            )
+        }
+
+        let latitudes = points.map(\.latitude)
+        let longitudes = points.map(\.longitude)
+        let minLat = latitudes.min() ?? 0, maxLat = latitudes.max() ?? 0
+        let minLon = longitudes.min() ?? 0, maxLon = longitudes.max() ?? 0
+
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2,
+                                           longitude: (minLon + maxLon) / 2),
+            span: MKCoordinateSpan(latitudeDelta: max((maxLat - minLat) * 1.7, 0.004),
+                                   longitudeDelta: max((maxLon - minLon) * 1.7, 0.004))
+        )
+    }
+
     private func breakdown(_ ride: Ride) -> some View {
         Card {
             VStack(spacing: 12) {
@@ -69,7 +90,7 @@ struct SummaryScreen: View {
                 row("average speed", averageSpeed(ride))
                 Divider().overlay(Theme.stroke)
 
-                if let scooter = Scooter.find(ride.scooterID) {
+                if let scooter = store.scooter(withID: ride.scooterID) {
                     row("unlock fee", scooter.unlockFee.money)
                     row("time charge", "\(scooter.pricePerMinute.money) × \(String(format: "%.1f", ride.duration / 60)) min")
                 }

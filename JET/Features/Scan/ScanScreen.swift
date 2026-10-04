@@ -125,7 +125,7 @@ struct ScanScreen: View {
         let cleaned = candidate.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         lastScan = cleaned
 
-        guard let scooter = Scooter.find(cleaned) else {
+        guard let scooter = store.scooter(withID: cleaned) else {
             missed = true
             return
         }

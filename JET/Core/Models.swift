@@ -19,6 +19,12 @@ struct Scooter: Identifiable, Hashable {
         if battery > 20 { return "mid" }
         return "low"
     }
+
+    /// Straight-line metres to a point. Used for "how far do I have to walk".
+    func meters(from origin: CLLocationCoordinate2D) -> CLLocationDistance {
+        CLLocation(latitude: latitude, longitude: longitude)
+            .distance(from: CLLocation(latitude: origin.latitude, longitude: origin.longitude))
+    }
 }
 
 struct Ride: Identifiable, Codable, Hashable {
@@ -36,7 +42,7 @@ struct Ride: Identifiable, Codable, Hashable {
     var isActive: Bool { endedAt == nil }
 }
 
-/// Route point for the mini map drawn on the ride summary.
+/// Route point for the polyline drawn on the ride summary.
 struct TrackPoint: Identifiable, Hashable {
     let id = UUID()
     let latitude: Double
@@ -44,19 +50,53 @@ struct TrackPoint: Identifiable, Hashable {
 }
 
 extension Scooter {
-    /// Demo fleet. Coordinates are a generic downtown grid so the app has
-    /// something to draw before a real `/vehicles` endpoint is wired in.
-    static let demoFleet: [Scooter] = [
-        Scooter(id: "SK-8F31A2", latitude: 40.71380, longitude: -74.00560, battery: 92, rangeKm: 41.0, pricePerMinute: 0.29, unlockFee: 1.00),
-        Scooter(id: "SK-2B77C4", latitude: 40.71120, longitude: -74.00890, battery: 68, rangeKm: 30.5, pricePerMinute: 0.29, unlockFee: 1.00),
-        Scooter(id: "SK-9D04E1", latitude: 40.71560, longitude: -74.00210, battery: 41, rangeKm: 18.2, pricePerMinute: 0.33, unlockFee: 1.00),
-        Scooter(id: "SK-5A19F8", latitude: 40.70990, longitude: -74.00330, battery: 17, rangeKm: 7.4,  pricePerMinute: 0.33, unlockFee: 1.00),
-        Scooter(id: "SK-C30B66", latitude: 40.71710, longitude: -74.00980, battery: 84, rangeKm: 37.9, pricePerMinute: 0.29, unlockFee: 1.00),
-        Scooter(id: "SK-1E8A05", latitude: 40.71050, longitude: -73.99940, battery: 55, rangeKm: 24.6, pricePerMinute: 0.29, unlockFee: 1.00),
-        Scooter(id: "SK-77C2D9", latitude: 40.71490, longitude: -73.99780, battery: 78, rangeKm: 34.8, pricePerMinute: 0.29, unlockFee: 1.00)
+
+    /// Stable-looking vehicle ids, matching the format the firmware advertises.
+    static let idPool = [
+        "SK-8F31A2", "SK-2B77C4", "SK-9D04E1", "SK-5A19F8",
+        "SK-C30B66", "SK-1E8A05", "SK-77C2D9", "SK-4F6B12",
+        "SK-A18D3E"
     ]
 
-    static func find(_ id: String) -> Scooter? {
-        demoFleet.first { $0.id.caseInsensitiveCompare(id) == .orderedSame }
+    /// Scatters a fleet on a rough ring around the rider, 145 m to ~780 m out.
+    ///
+    /// This is the piece that makes the app correct wherever it is opened: the
+    /// fleet is generated from the device's own fix, not from a baked-in grid.
+    /// Longitude is divided by cos(latitude) so the ring stays circular instead
+    /// of squashing as you move away from the equator.
+    static func fleet(around center: CLLocationCoordinate2D, count: Int = 7) -> [Scooter] {
+        let pool = idPool.shuffled()
+        let usable = min(count, pool.count)
+        let lonScale = 1.0 / max(cos(center.latitude * .pi / 180.0), 0.25)
+
+        return (0..<usable).map { index in
+            let angle = (Double(index) / Double(usable)) * 2 * .pi + Double.random(in: -0.45...0.45)
+            let radius = Double.random(in: 0.0013...0.0070)   // degrees ≈ 145 m … 780 m
+
+            let battery = Int.random(in: 14...98)
+
+            return Scooter(
+                id: pool[index],
+                latitude: center.latitude + radius * cos(angle),
+                longitude: center.longitude + radius * sin(angle) * lonScale,
+                battery: battery,
+                rangeKm: (Double(battery) * 0.44).rounded(toPlaces: 1),
+                pricePerMinute: Bool.random() ? 0.29 : 0.33,
+                unlockFee: 1.00
+            )
+        }
+    }
+
+    /// Only used when location access is refused and there is nothing real to
+    /// draw. A neutral mid-Atlantic grid, so it is obvious it is not a real city.
+    static let fallbackFleet: [Scooter] = fleet(
+        around: CLLocationCoordinate2D(latitude: 40.7135, longitude: -74.0040)
+    )
+}
+
+extension Double {
+    func rounded(toPlaces places: Int) -> Double {
+        let divisor = pow(10.0, Double(places))
+        return (self * divisor).rounded() / divisor
     }
 }

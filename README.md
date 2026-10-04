@@ -126,8 +126,11 @@ directly. Deployment target is iOS 17.0.
 
 ## Demo notes
 
-- The fleet is seven scooters on a fixed downtown grid
-  ([`Models.swift`](JET/Core/Models.swift)) — there is no `/vehicles` backend yet.
+- **The fleet is generated around your own GPS fix**, 145 m to about 780 m out
+  ([`Models.swift`](JET/Core/Models.swift)), so the map opens wherever you are —
+  there is no `/vehicles` backend yet. Grant location access on first launch. If
+  access is refused, the app says so and falls back to a demo area rather than
+  pretending you are somewhere you are not.
 - The QR scanner accepts a bare id (`SK-8F31A2`), a `jet:` deep link, or a URL
   ending in the code, so it works against real scooter QR codes.
 - No scooter hardware? The unlock will scan, time out after 12 seconds, and say
