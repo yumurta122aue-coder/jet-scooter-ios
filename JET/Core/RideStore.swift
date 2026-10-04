@@ -115,13 +115,18 @@ final class RideStore: NSObject, ObservableObject {
 
         balance = max(0, balance - ride.cost)
         history.insert(ride, at: 0)
-        receipt = ride
 
         active = nil
         pendingScooter = nil
         stopTicker()
         locationManager.stopUpdatingLocation()
         unlock.lock()
+
+        // Let the ride cover finish dismissing before the receipt cover presents.
+        let finished = ride
+        DispatchQueue.main.async { [weak self] in
+            self?.receipt = finished
+        }
 
         Task { try? await backend.endRide(ride) }
     }

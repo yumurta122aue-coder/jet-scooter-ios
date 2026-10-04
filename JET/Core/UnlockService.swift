@@ -232,7 +232,9 @@ extension UnlockService: CBCentralManagerDelegate {
         if phase == .unlocked {
             note("link dropped — vehicle armed its dead-man switch")
         }
-        if case .failed = phase {} else if phase != .idle {
+        if case .failed = phase {
+            // keep the failure on screen; the rider needs to read it
+        } else if phase != .idle {
             phase = .idle
         }
     }

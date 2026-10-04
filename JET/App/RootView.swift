@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var store: RideStore
@@ -42,7 +43,11 @@ struct RootView: View {
     }
 
     private var hasReceipt: Binding<Bool> {
-        Binding(get: { store.receipt != nil }, set: { if !$0 { store.clearReceipt() } })
+        // Gated on the ride cover being gone, so two covers never race.
+        Binding(
+            get: { store.receipt != nil && store.active == nil },
+            set: { if !$0 { store.clearReceipt() } }
+        )
     }
 
     private var alertBinding: Binding<Bool> {

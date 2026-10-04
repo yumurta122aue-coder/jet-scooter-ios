@@ -113,9 +113,11 @@ struct ScanScreen: View {
 
         let candidate: String
         if let range = trimmed.range(of: "jet:", options: .caseInsensitive) {
-            candidate = String(trimmed[range.upperBound...]).split(separator: "&").first.map(String.init) ?? ""
+            let tail = String(trimmed[range.upperBound...])
+            candidate = tail.components(separatedBy: "&").first ?? tail
         } else if trimmed.contains("/") {
-            candidate = trimmed.split(separator: "/").last.map(String.init) ?? trimmed
+            let pieces = trimmed.components(separatedBy: "/")
+            candidate = pieces.last ?? trimmed
         } else {
             candidate = trimmed
         }
