@@ -94,16 +94,45 @@ final class NFCCardTool: NSObject, ObservableObject {
 
     private func note(_ text: String) {
         let stamp = Date().formatted(date: .omitted, time: .standard)
-        lines.append("\(stamp)  \(text)")
+        publish { [weak self] in
+            self?.lines.append("\(stamp)  \(text)")
+        }
     }
 
-    private func familyName(_ family: NFCMiFareFamily) -> String {
-        switch family {
-        case .ultralight: return "Ultralight / NTAG"
-        case .plus:       return "Plus"
-        case .desfire:    return "DESFire"
-        default:          return "unknown (Classic is unsupported by iOS)"
+    /// NFC callbacks are not guaranteed to arrive on the main queue, and every
+    /// @Published write here feeds SwiftUI.
+    private func publish(_ body: @escaping () -> Void) {
+        if Thread.isMainThread {
+            body()
+        } else {
+            DispatchQueue.main.async(execute: body)
         }
+    }
+
+    /// Decodes a GET_VERSION (0x60) response.
+    /// byte 1 vendor · 2 product type · 3 subtype · 4 major · 5 minor · 6 storage
+    static func interpretGetVersion(_ data: Data) -> String {
+        let bytes = [UInt8](data)
+        guard bytes.count >= 7 else { return "unrecognised version response" }
+
+        let vendor: String
+        switch bytes[1] {
+        case 0x04: vendor = "NXP"
+        case 0x05: vendor = "Infineon"
+        case 0x07: vendor = "Texas Instruments"
+        default:   vendor = String(format: "vendor 0x%02X", bytes[1])
+        }
+
+        let product: String
+        switch bytes[2] {
+        case 0x01: product = "Ultralight / NTAG21x"
+        case 0x02: product = "NTAG"
+        case 0x03: product = "DESFire"
+        case 0x04: product = "ISO 14443-4"
+        default:   product = String(format: "product 0x%02X", bytes[2])
+        }
+
+        return "\(vendor) \(product) · v\(bytes[4]).\(bytes[5]) · \(Int(bytes[6]) * 2) bytes"
     }
 
     private func inspect(_ tag: NFCTag, session: NFCTagReaderSession) {
@@ -116,17 +145,26 @@ final class NFCCardTool: NSObject, ObservableObject {
             ndefTag = mifare
             card.technology = "MIFARE (ISO 14443-A)"
             card.identifier = mifare.identifier.hexSpaced
-            card.detail = familyName(mifare.miFareFamily)
-            note("MIFARE uid=\(mifare.identifier.hexSpaced) family=\(familyName(mifare.miFareFamily))")
+            card.detail = "identifying…"
+            note("MIFARE uid=\(mifare.identifier.hexSpaced)")
 
-            // GET_VERSION separates Ultralight from NTAG21x and friends.
+            // GET_VERSION is how you actually identify a MIFARE part. The vendor
+            // and product bytes separate Ultralight from NTAG from DESFire far
+            // more reliably than anything the platform chooses to expose. A
+            // MIFARE Classic does not answer this command at all, which is itself
+            // the diagnosis.
             mifare.sendMiFareCommand(commandPacket: Data([0x60])) { [weak self] response, error in
                 guard let self else { return }
                 if let error {
                     self.note("   GET_VERSION failed: \(error.localizedDescription)")
-                } else {
-                    self.note("   GET_VERSION: \(response.hexSpaced)")
+                    self.note("   → no version response, which is what a MIFARE Classic does")
+                    self.publish { self.summary?.detail = "MIFARE Classic (UID only — iOS cannot read it)" }
+                    return
                 }
+                let description = Self.interpretGetVersion(response)
+                self.note("   GET_VERSION: \(response.hexSpaced)")
+                self.note("   → \(description)")
+                self.publish { self.summary?.detail = description }
             }
 
         case .iso7816(let iso):
@@ -155,7 +193,7 @@ final class NFCCardTool: NSObject, ObservableObject {
             note("unrecognised tag technology")
         }
 
-        summary = card
+        publish { [weak self] in self?.summary = card }
 
         if let ndefTag {
             ndefTag.queryNDEFStatus { [weak self] status, capacity, error in
@@ -185,7 +223,7 @@ final class NFCCardTool: NSObject, ObservableObject {
                         self.note("NDEF read failed: \(error.localizedDescription)")
                     } else if let message, let record = message.records.first {
                         let payload = String(data: record.payload, encoding: .utf8) ?? record.payload.hexSpaced
-                        self.summary?.ndef = payload
+                        self.publish { self.summary?.ndef = payload }
                         self.note("NDEF record: \(payload)")
                     } else {
                         self.note("NDEF: empty")
@@ -210,8 +248,10 @@ extension NFCCardTool: NFCTagReaderSessionDelegate {
     }
 
     func tagReaderSession(_ session: NFCTagReaderSession, didInvalidateWithError error: Error) {
-        isReading = false
-        connectedMiFare = nil
+        publish { [weak self] in
+            self?.isReading = false
+            self?.connectedMiFare = nil
+        }
         if let readerError = error as? NFCReaderError,
            readerError.code == .readerSessionInvalidationErrorUserCanceled {
             note("session cancelled")

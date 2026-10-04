@@ -82,7 +82,11 @@ struct NFCCardScreen: View {
 
     private var readButton: some View {
         Button {
-            tool.isReading ? tool.stop() : tool.start()
+            if tool.isReading {
+                tool.stop()
+            } else {
+                tool.start()
+            }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: tool.isReading ? "stop.fill" : "wave.3.right")
