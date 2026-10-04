@@ -5,6 +5,7 @@ import SwiftUI
 enum ToolRoute: Hashable {
     case ble
     case nfc
+    case api
 }
 
 struct ToolsScreen: View {
@@ -26,6 +27,12 @@ struct ToolsScreen: View {
                             icon: "wave.3.right",
                             title: "NFC card",
                             subtitle: "Read contactless cards, identify the technology, pull the UID, send raw MIFARE commands."
+                        )
+                        toolCard(
+                            route: .api,
+                            icon: "arrow.left.arrow.right.circle.fill",
+                            title: "API console",
+                            subtitle: "Paste a bearer token and call the vehicle API directly. Send any path, see the real status and body."
                         )
 
                         Card {
@@ -50,6 +57,7 @@ struct ToolsScreen: View {
                 switch route {
                 case .ble: ReconScreen()
                 case .nfc: NFCCardScreen()
+                case .api: APIConsoleScreen()
                 }
             }
         }
