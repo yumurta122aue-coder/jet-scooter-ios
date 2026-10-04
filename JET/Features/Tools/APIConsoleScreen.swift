@@ -16,7 +16,7 @@ struct APIConsoleScreen: View {
     @AppStorage("jet.api.base")  private var base: String = "https://api.gojet.app"
     @AppStorage("jet.api.path")  private var path: String = "/api/v1/auth/token/refresh"
     @AppStorage("jet.api.token") private var token: String = ""
-    @AppStorage("jet.api.body")  private var body: String = "{}"
+    @AppStorage("jet.api.body")  private var requestBody: String = "{}"
 
     @State private var method: String = "POST"
     @State private var showToken = false
@@ -163,7 +163,7 @@ struct APIConsoleScreen: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(Theme.textDim)
                             .textCase(.uppercase)
-                        TextEditor(text: $body)
+                        TextEditor(text: $requestBody)
                             .font(.system(size: 11.5, design: .monospaced))
                             .foregroundStyle(Theme.text)
                             .scrollContentBackground(.hidden)
@@ -344,7 +344,7 @@ struct APIConsoleScreen: View {
                                                base: base,
                                                path: path,
                                                token: token,
-                                               body: body)
+                                               body: requestBody)
             response = result
             let stamp = Date().formatted(date: .omitted, time: .standard)
             history.insert("\(stamp)  \(method) \(path) → \(result.status)  \(result.verdict)", at: 0)
