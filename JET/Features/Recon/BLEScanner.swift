@@ -119,7 +119,7 @@ final class BLEScanner: NSObject, ObservableObject {
             return
         }
         let type: CBCharacteristicWriteType =
-            match.properties.contains("write") ? .withResponse : .withoutResponse
+            match.properties.contains(.write) ? .withResponse : .withoutResponse
         device.peripheral.writeValue(data, for: match, type: type)
         device.note("write \(data.count)B → \(uuid): \(hex.uppercased())")
     }
