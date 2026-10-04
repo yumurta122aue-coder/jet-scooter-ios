@@ -1,0 +1,73 @@
+name: build-ipa
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: install xcodegen
+        run: brew install xcodegen
+
+      - name: generate xcode project
+        run: xcodegen generate
+
+      - name: build unsigned .app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project JET.xcodeproj \
+            -scheme JET \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            ENABLE_BITCODE=NO \
+            build
+
+      - name: package unsigned ipa
+        run: |
+          set -e
+          APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/JET.app"
+          test -d "$APP" || { echo "app not found at $APP"; find "$RUNNER_TEMP/dd/Build/Products" -maxdepth 3 -name '*.app'; exit 1; }
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry JET-unsigned.ipa Payload
+          ls -lh JET-unsigned.ipa
+          echo "--- payload ---"
+          find Payload -maxdepth 3 | head -40
+
+      - name: upload ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: JET-unsigned-ipa
+          path: JET-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: |
+            ${{ runner.temp }}/dd/Logs
+          if-no-files-found: ignore
+          retention-days: 7
