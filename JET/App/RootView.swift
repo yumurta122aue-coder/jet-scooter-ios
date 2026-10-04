@@ -22,6 +22,10 @@ struct RootView: View {
             ProfileScreen()
                 .tabItem { Label("Profile", systemImage: "person.fill") }
                 .tag(3)
+
+            ReconScreen()
+                .tabItem { Label("Recon", systemImage: "antenna.radiowaves.left.and.right") }
+                .tag(4)
         }
         .tint(Theme.lime)
         .fullScreenCover(isPresented: isRiding) {
